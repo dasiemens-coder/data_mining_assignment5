@@ -49,11 +49,14 @@ public class Jabeja {
    * Simulated analealing cooling function
    */
   private void saCoolDown(){
-    // TODO for second task
+    // Based on http://katrinaeg.com/simulated-annealing.html
+    // We use delta (R \e [0-1]) as a decay rate -> T = T * (1 - delta) = T * alpha
     if (T > 1)
-      T -= config.getDelta();
-    if (T < 1)
+      // Change to multiplicative cooling
+      T *= (1-config.getDelta());
+    if (T <= 1)
       T = 1;
+    // if T = 1 no action needed 
   }
 
   /**
@@ -67,42 +70,72 @@ public class Jabeja {
     if (config.getNodeSelectionPolicy() == NodeSelectionPolicy.HYBRID
             || config.getNodeSelectionPolicy() == NodeSelectionPolicy.LOCAL) {
       // swap with random neighbors
-      // TODO
-      Integer[] neighbors = getNeighbors(nodep);
-      partner = findPartner(nodeId, neighbors);
-
-      if (partner == null && config.getNodeSelectionPolicy() == NodeSelectionPolicy.HYBRID) {
-        Integer[] randomSample = getSample(nodeId);
-        partner = findPartner(nodeId, randomSample);
-      }
-
-      if (partner != null) {
-        int tempColor = nodep.getColor();
-        nodep.setColor(partner.getColor());
-        partner.setColor(tempColor);
-        numberOfSwaps++;
-      }
+      partner = findPartner(nodeId, getNeighbors(nodep));
     }
 
-    if (config.getNodeSelectionPolicy() == NodeSelectionPolicy.HYBRID
-            || config.getNodeSelectionPolicy() == NodeSelectionPolicy.RANDOM) {
+    if (config.getNodeSelectionPolicy() == NodeSelectionPolicy.RANDOM
+            || config.getNodeSelectionPolicy() == NodeSelectionPolicy.HYBRID && partner == null) { //when hybrid, only search if no partner found yet
       // if local policy fails then randomly sample the entire graph
-      // TODO
+      partner = findPartner(nodeId, getSample(nodeId));
     }
 
     // swap the colors
-    // TODO
+    if (partner != null) {
+      int colorP = nodep.getColor();
+      int colorQ = partner.getColor();
+      
+      nodep.setColor(colorQ);
+      partner.setColor(colorP);
+      // increment count
+      numberOfSwaps++;
+    }
   }
 
   public Node findPartner(int nodeId, Integer[] nodes){
 
     Node nodep = entireGraph.get(nodeId);
-
+  
     Node bestPartner = null;
+    //to keep track of the best benefit found so far
     double highestBenefit = 0;
-
-    // TODO
-
+    // alpha parameter from the config
+    // - controls the bias towards higher degree nodes
+    // alpha > 1 : high degree nodes are favored, therefore might accept swap that does not imediately improve local condition
+    // alpha = 1 : linear preference
+    // best practice from the paper suggests alpha = 2
+    double alpha = config.getAlpha();
+  
+    for (Integer neighborId : nodes) {
+      Node nodeq = entireGraph.get(neighborId);
+      
+      // Calculate degrees for current state (d_pp, d_qq)
+      // Degree of p with its own color
+      int d_pp = getDegree(nodep, nodep.getColor());
+      // Degree of q with its own color
+      int d_qq = getDegree(nodeq, nodeq.getColor());
+      
+      // Calculate current energy (old value)
+      double oldVal = Math.pow(d_pp, alpha) + Math.pow(d_qq, alpha);
+  
+      // Calculate degrees for potential swapped state (d_pq, d_qp)
+      // Degree of p if it had q's color
+      int d_pq = getDegree(nodep, nodeq.getColor());
+      // Degree of q if it had p's color
+      int d_qp = getDegree(nodeq, nodep.getColor());
+      
+      // Calculate new energy (new value)
+      double newVal = Math.pow(d_pq, alpha) + Math.pow(d_qp, alpha);
+  
+      // Acceptance criteria from Algorithm 1, Line 25 
+      // (newVal * T > oldVal) implements the Simulated Annealing logic 
+      // (newVal > highestBenefit) ensures we pick the BEST candidate in the set
+      
+      if ((newVal * T > oldVal) && (newVal > highestBenefit)) {
+        bestPartner = nodeq;
+        highestBenefit = newVal;
+      }
+    }
+  
     return bestPartner;
   }
 
