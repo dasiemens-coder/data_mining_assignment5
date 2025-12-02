@@ -68,6 +68,20 @@ public class Jabeja {
             || config.getNodeSelectionPolicy() == NodeSelectionPolicy.LOCAL) {
       // swap with random neighbors
       // TODO
+      Integer[] neighbors = getNeighbors(nodep);
+      partner = findPartner(nodeId, neighbors);
+
+      if (partner == null && config.getNodeSelectionPolicy() == NodeSelectionPolicy.HYBRID) {
+        Integer[] randomSample = getSample(nodeId);
+        partner = findPartner(nodeId, randomSample);
+      }
+
+      if (partner != null) {
+        int tempColor = nodep.getColor();
+        nodep.setColor(partner.getColor());
+        partner.setColor(tempColor);
+        numberOfSwaps++;
+      }
     }
 
     if (config.getNodeSelectionPolicy() == NodeSelectionPolicy.HYBRID
